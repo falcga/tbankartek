@@ -3,41 +3,79 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Админ-панель — AI Ассистент</title>
+  <title>Админ — Параллель</title>
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
   <nav class="nav">
-    <a href="/dashboard" class="nav-brand">📚 AI Ассистент</a>
-    <div class="nav-links">
+    <a href="/dashboard" class="nav-brand">Параллель</a>
+    <div class="nav-center">
       <a href="/dashboard">Дэшборд</a>
+    </div>
+    <div class="desktop-nav">
       <a href="/trainer">Тренажёр</a>
       <a href="/settings">Настройки</a>
-      <a href="/admin" class="active">Админ</a>
+      <a href="/admin">Админ</a>
       <a href="/logout">Выйти</a>
     </div>
+    <button class="burger-btn" onclick="toggleBurger()">
+      <span></span><span></span><span></span>
+    </button>
   </nav>
 
-  <div class="container">
-    <h1 style="margin-bottom:24px;">⚙️ Админ-панель</h1>
+  <div class="burger-overlay" id="burger-overlay"></div>
+  <div class="burger-menu" id="burger-menu">
+    <a href="/dashboard">Дэшборд</a>
+    <a href="/trainer">Тренажёр</a>
+    <a href="/settings">Настройки</a>
+    <a href="/admin">Админ</a>
+    <div class="burger-divider"></div>
+    <a href="/logout" style="color:var(--error);">Выйти</a>
+  </div>
 
-    <div class="stats-grid" style="margin-bottom:24px;">
+  <div class="container">
+    <h1 style="margin-bottom:20px;font-size:22px;">Админ-панель</h1>
+
+    <div class="stats-grid" style="margin-bottom:20px;">
       <div class="stat-card">
         <div class="stat-value">{{ stats['active_users'] or 0 }}</div>
-        <div class="stat-label">Активных пользователей</div>
+        <div class="stat-label">Активных</div>
       </div>
       <div class="stat-card">
         <div class="stat-value">{{ stats['total_attempts'] or 0 }}</div>
-        <div class="stat-label">Всего попыток</div>
+        <div class="stat-label">Попыток</div>
       </div>
       <div class="stat-card">
         <div class="stat-value">{{ (stats['avg_score'] or 0)|round(1) }}</div>
         <div class="stat-label">Средний балл</div>
       </div>
+      <div class="stat-card">
+        <div class="stat-value">{{ q_count }}</div>
+        <div class="stat-label">Вопросов</div>
+      </div>
     </div>
 
     <div class="card">
-      <h2 style="margin-bottom:16px;">Пользователи ({{ users|length }})</h2>
+      <h2 style="margin-bottom:12px;font-size:16px;">Генерация вопросов</h2>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <select id="gen-subject" class="form-select" style="flex:1;min-width:120px;">
+          <option value="math">Математика</option>
+          <option value="russian">Русский язык</option>
+          <option value="informatics">Информатика</option>
+        </select>
+        <select id="gen-count" class="form-select" style="width:80px;">
+          <option value="3">3</option>
+          <option value="5" selected>5</option>
+          <option value="10">10</option>
+        </select>
+        <button id="gen-btn" class="btn btn-primary btn-sm" onclick="generateQuestions()">Сгенерировать</button>
+        <button class="btn btn-sm" onclick="deleteGenerated()">Удалить AI</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteAllQuestions()">Удалить всё</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-bottom:12px;font-size:16px;">Пользователи ({{ users|length }})</h2>
       <div style="overflow-x:auto;">
         <table class="admin-table">
           <thead>
@@ -49,7 +87,7 @@
               <th>Предмет</th>
               <th>Класс</th>
               <th>Дата</th>
-              <th>Действия</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -64,9 +102,7 @@
               <td>{{ u['created_at'][:10] }}</td>
               <td>
                 {% if u['role'] != 'admin' %}
-                <button class="btn btn-danger btn-sm" onclick="deleteUser({{ u['id'] }})">Удалить</button>
-                {% else %}
-                <span style="color:var(--text-secondary);font-size:12px;">—</span>
+                <button class="btn btn-danger btn-sm" onclick="deleteUser({{ u['id'] }})">x</button>
                 {% endif %}
               </td>
             </tr>
@@ -74,6 +110,19 @@
           </tbody>
         </table>
       </div>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-bottom:12px;font-size:16px;">Логи</h2>
+      {% for l in logs %}
+      <div class="log-entry">
+        <span class="log-time">{{ l['created_at'][:19] }}</span>
+        <span style="margin-left:8px;">{{ l['action'] }}</span>
+        {% if l['details'] %}<span style="color:var(--text-secondary);font-size:12px;"> — {{ l['details'] }}</span>{% endif %}
+      </div>
+      {% else %}
+      <p style="color:var(--text-secondary);font-size:13px;">Нет записей</p>
+      {% endfor %}
     </div>
   </div>
 

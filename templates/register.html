@@ -3,21 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Регистрация — AI Ассистент</title>
+  <title>Регистрация — Параллель</title>
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
   <div class="container-sm">
     <div class="auth-card">
       <div class="logo">📚</div>
-      <h1>Создать аккаунт</h1>
+      <h1>Параллель</h1>
       <p>Начни подготовку к экзаменам</p>
 
       <div class="card">
         {% if error %}
         <div class="alert alert-error">{{ error }}</div>
         {% endif %}
-
         <form method="POST">
           <div class="form-group">
             <label for="name">Имя</label>

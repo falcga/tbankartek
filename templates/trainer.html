@@ -3,52 +3,71 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Тренажёр — AI Ассистент</title>
+  <title>Тренажёр — Параллель</title>
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
   <nav class="nav">
-    <a href="/dashboard" class="nav-brand">📚 AI Ассистент</a>
-    <div class="nav-links">
+    <a href="/dashboard" class="nav-brand">Параллель</a>
+    <div class="nav-center">
       <a href="/dashboard">Дэшборд</a>
-      <a href="/trainer" class="active">Тренажёр</a>
+    </div>
+    <div class="desktop-nav">
+      <a href="/trainer">Тренажёр</a>
       <a href="/settings">Настройки</a>
       {% if session.get('role') == 'admin' %}
       <a href="/admin">Админ</a>
       {% endif %}
       <a href="/logout">Выйти</a>
     </div>
+    <button class="burger-btn" onclick="toggleBurger()">
+      <span></span><span></span><span></span>
+    </button>
   </nav>
 
-  <div class="container">
-    <h1 style="margin-bottom:24px;">🧠 Тренажёр</h1>
+  <div class="burger-overlay" id="burger-overlay"></div>
+  <div class="burger-menu" id="burger-menu">
+    <a href="/dashboard">Дэшборд</a>
+    <a href="/trainer">Тренажёр</a>
+    <a href="/settings">Настройки</a>
+    {% if session.get('role') == 'admin' %}
+    <a href="/admin">Админ</a>
+    {% endif %}
+    <div class="burger-divider"></div>
+    <a href="/logout" style="color:var(--error);">Выйти</a>
+  </div>
 
-    <div class="card" id="setup-card">
-      <div class="form-group">
-        <label for="subject-select">Выбери предмет</label>
-        <select id="subject-select" class="form-select">
-          <option value="math">Математика</option>
-          <option value="russian">Русский язык</option>
-          <option value="informatics">Информатика</option>
-        </select>
+  <div class="container trainer-wrapper">
+    <div class="trainer-content">
+      <h1 style="margin-bottom:20px;font-size:22px;">Тренажёр</h1>
+
+      <div class="card" id="setup-card">
+        <div class="form-group">
+          <label for="subject-select">Выбери предмет</label>
+          <select id="subject-select" class="form-select">
+            <option value="math">Математика</option>
+            <option value="russian">Русский язык</option>
+            <option value="informatics">Информатика</option>
+          </select>
+        </div>
+        <button id="start-btn" class="btn btn-primary btn-block">Начать тест</button>
       </div>
-      <button id="start-btn" class="btn btn-primary btn-block">Начать тест</button>
+
+      <div class="progress-bar" style="display:none;" id="progress-bar">
+        <div class="progress-bar-fill" id="progress-fill" style="width:0%;"></div>
+      </div>
+
+      <div id="question-container"></div>
+      <div id="explanation-box" class="explanation-box"></div>
+      <div id="result-container"></div>
     </div>
 
-    <div class="progress-bar" style="display:none;" id="progress-bar">
-      <div class="progress-bar-fill" id="progress-fill" style="width:0%;"></div>
+    <div class="trainer-bottom" id="trainer-bottom" style="display:none;">
+      <div class="btn-group">
+        <button id="next-btn" class="btn btn-primary" style="display:none;">Следующий</button>
+        <button id="finish-btn" class="btn btn-primary" style="display:none;">Завершить</button>
+      </div>
     </div>
-
-    <div id="question-container"></div>
-
-    <div id="explanation-box" class="explanation-box"></div>
-
-    <div style="display:flex;gap:8px;margin-top:16px;">
-      <button id="next-btn" class="btn btn-primary" style="display:none;">Следующий вопрос →</button>
-      <button id="finish-btn" class="btn btn-primary" style="display:none;">Завершить тест</button>
-    </div>
-
-    <div id="result-container"></div>
   </div>
 
   <script src="/static/js/script.js"></script>

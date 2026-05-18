@@ -3,25 +3,42 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Настройки — AI Ассистент</title>
+  <title>Настройки — Параллель</title>
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
   <nav class="nav">
-    <a href="/dashboard" class="nav-brand">📚 AI Ассистент</a>
-    <div class="nav-links">
+    <a href="/dashboard" class="nav-brand">Параллель</a>
+    <div class="nav-center">
       <a href="/dashboard">Дэшборд</a>
+    </div>
+    <div class="desktop-nav">
       <a href="/trainer">Тренажёр</a>
-      <a href="/settings" class="active">Настройки</a>
+      <a href="/settings">Настройки</a>
       {% if session.get('role') == 'admin' %}
       <a href="/admin">Админ</a>
       {% endif %}
       <a href="/logout">Выйти</a>
     </div>
+    <button class="burger-btn" onclick="toggleBurger()">
+      <span></span><span></span><span></span>
+    </button>
   </nav>
 
+  <div class="burger-overlay" id="burger-overlay"></div>
+  <div class="burger-menu" id="burger-menu">
+    <a href="/dashboard">Дэшборд</a>
+    <a href="/trainer">Тренажёр</a>
+    <a href="/settings">Настройки</a>
+    {% if session.get('role') == 'admin' %}
+    <a href="/admin">Админ</a>
+    {% endif %}
+    <div class="burger-divider"></div>
+    <a href="/logout" style="color:var(--error);">Выйти</a>
+  </div>
+
   <div class="container">
-    <h1 style="margin-bottom:24px;">⚙️ Настройки</h1>
+    <h1 style="margin-bottom:20px;font-size:22px;">Настройки</h1>
 
     <div class="card">
       <form id="settings-form">
@@ -66,7 +83,7 @@
           </div>
         </div>
 
-        <button type="submit" class="btn btn-primary">Сохранить настройки</button>
+        <button type="submit" class="btn btn-primary btn-block">Сохранить</button>
       </form>
     </div>
   </div>

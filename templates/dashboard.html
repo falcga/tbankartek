@@ -3,14 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Дэшборд — AI Ассистент</title>
+  <title>Дэшборд — Параллель</title>
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
   <nav class="nav">
-    <a href="/dashboard" class="nav-brand">📚 AI Ассистент</a>
-    <div class="nav-links">
-      <a href="/dashboard" class="active">Дэшборд</a>
+    <a href="/dashboard" class="nav-brand">Параллель</a>
+    <div class="nav-center">
+      <a href="/dashboard">Дэшборд</a>
+    </div>
+    <div class="desktop-nav">
       <a href="/trainer">Тренажёр</a>
       <a href="/settings">Настройки</a>
       {% if session.get('role') == 'admin' %}
@@ -18,39 +20,45 @@
       {% endif %}
       <a href="/logout">Выйти</a>
     </div>
+    <button class="burger-btn" onclick="toggleBurger()">
+      <span></span><span></span><span></span>
+    </button>
   </nav>
 
-  <div class="container">
-    <h1 style="margin-bottom:24px;">Привет, {{ user['name'] or user['email'] }}! 👋</h1>
+  <div class="burger-overlay" id="burger-overlay"></div>
+  <div class="burger-menu" id="burger-menu">
+    <a href="/dashboard">Дэшборд</a>
+    <a href="/trainer">Тренажёр</a>
+    <a href="/settings">Настройки</a>
+    {% if session.get('role') == 'admin' %}
+    <a href="/admin">Админ</a>
+    {% endif %}
+    <div class="burger-divider"></div>
+    <a href="/logout" style="color:var(--error);">Выйти</a>
+  </div>
 
-    <div class="stats-grid" id="stats-grid">
+  <div class="container">
+    <h1 style="margin-bottom:20px;font-size:22px;">Привет, {{ user['name'] or user['email'] }}!</h1>
+
+    <div class="stats-grid">
       <div class="stat-card">
-        <div class="stat-value" id="stat-total">
-          {% set total = results|length %}
-          {{ total }}
-        </div>
-        <div class="stat-label">Всего попыток</div>
+        <div class="stat-value">{{ results|length }}</div>
+        <div class="stat-label">Попыток</div>
       </div>
       <div class="stat-card">
-        <div class="stat-value" id="stat-avg">
-          {% set avg = namespace(value=0) %}
-          {% if results %}
-            {% set sum = results|sum(attribute='total') %}
-            {% set correct = results|sum(attribute='score') %}
-            {% if sum > 0 %}
-              {{ (correct / sum * 100)|round(0)|int }}%
-            {% else %}
-              0%
-            {% endif %}
-          {% else %}
-            0%
-          {% endif %}
+        <div class="stat-value">
+          {% set ns = namespace(sum=0, correct=0) %}
+          {% for r in results %}
+            {% set ns.sum = ns.sum + r['total'] %}
+            {% set ns.correct = ns.correct + r['score'] %}
+          {% endfor %}
+          {% if ns.sum > 0 %}{{ (ns.correct / ns.sum * 100)|round(0)|int }}%{% else %}0%{% endif %}
         </div>
         <div class="stat-label">Средний результат</div>
       </div>
       <div class="stat-card">
         <div class="stat-value">{{ user['subject'] }}</div>
-        <div class="stat-label">Основной предмет</div>
+        <div class="stat-label">Предмет</div>
       </div>
       <div class="stat-card">
         <div class="stat-value">{{ user['grade'] }}</div>
@@ -59,7 +67,7 @@
     </div>
 
     <div class="card">
-      <h2 style="margin-bottom:16px;">Последние результаты</h2>
+      <h2 style="margin-bottom:16px;font-size:16px;">Последние результаты</h2>
       {% if results %}
         {% for r in results %}
         <div class="result-item">
@@ -77,7 +85,7 @@
       {% endif %}
     </div>
 
-    <div style="text-align:center;margin-top:24px;">
+    <div style="text-align:center;margin-top:20px;">
       <a href="/trainer" class="btn btn-primary">Начать тренировку</a>
     </div>
   </div>

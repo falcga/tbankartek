@@ -45,5 +45,6 @@ Thumbs.db
 .env.test.local
 .env.production.local
 
-# Temp directories
--p/
+# Production folder
+prod/*
+!prod/GOAL.md

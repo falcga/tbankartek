@@ -2,6 +2,7 @@ import os
 import sqlite3
 import hashlib
 import requests
+import json
 from datetime import datetime, timedelta
 from functools import wraps
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session
@@ -49,7 +50,16 @@ def init_db():
             question TEXT NOT NULL,
             options TEXT NOT NULL,
             answer INTEGER NOT NULL,
-            difficulty INTEGER DEFAULT 1
+            difficulty INTEGER DEFAULT 1,
+            source TEXT DEFAULT 'seed',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS admin_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            action TEXT NOT NULL,
+            details TEXT DEFAULT '',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
     ''')
     conn.commit()
@@ -57,6 +67,14 @@ def init_db():
 
 
 init_db()
+
+
+def log_admin(user_id, action, details=''):
+    conn = get_db()
+    conn.execute('INSERT INTO admin_logs (user_id, action, details) VALUES (?,?,?)',
+                 (user_id, action, details))
+    conn.commit()
+    conn.close()
 
 
 def login_required(f):
@@ -89,6 +107,8 @@ def ask_gemini(prompt):
             timeout=30
         )
         data = resp.json()
+        if 'candidates' not in data or not data['candidates']:
+            return f"Gemini API: пустой ответ. Детали: {json.dumps(data, ensure_ascii=False)}"
         return data['candidates'][0]['content']['parts'][0]['text']
     except Exception as e:
         return f"Ошибка Gemini API: {str(e)}"
@@ -256,6 +276,8 @@ def submit_result():
     return jsonify({'status': 'ok'})
 
 
+# ─── Admin ────────────────────────────────────────────────────────────────────
+
 @app.route('/admin')
 @admin_required
 def admin_panel():
@@ -268,8 +290,10 @@ def admin_panel():
                COUNT(*) as total_attempts
         FROM results
     ''').fetchone()
+    logs = conn.execute('SELECT * FROM admin_logs ORDER BY created_at DESC LIMIT 50').fetchall()
+    q_count = conn.execute('SELECT COUNT(*) as c FROM questions').fetchone()['c']
     conn.close()
-    return render_template('admin.html', users=users, results=results, stats=stats)
+    return render_template('admin.html', users=users, results=results, stats=stats, logs=logs, q_count=q_count)
 
 
 @app.route('/api/admin/users', methods=['GET'])
@@ -292,8 +316,89 @@ def delete_user():
     conn.execute('DELETE FROM results WHERE user_id = ?', (user_id,))
     conn.commit()
     conn.close()
+    log_admin(session['user_id'], 'удаление пользователя', f'user_id={user_id}')
     return jsonify({'status': 'ok'})
 
+
+@app.route('/api/admin/generate_questions', methods=['POST'])
+@admin_required
+def generate_questions():
+    data = request.json
+    subject = data.get('subject', 'math')
+    count = int(data.get('count', 5))
+
+    prompt = f"""Сгенерируй {count} вопросов по предмету "{subject}" для подготовки к ОГЭ/ЕГЭ.
+Формат ответа: JSON-массив объектов, каждый объект имеет поля:
+- subject: "{subject}"
+- topic: тема (например algebra geometry probability для math, orthography grammar punctuation для russian, logic coding systems для informatics)
+- question: текст вопроса
+- options: массив из 4 строк-вариантов ответа
+- answer: индекс правильного ответа (0-3)
+- difficulty: уровень сложности 1-3
+
+Ответ должен быть ТОЛЬКО JSON без лишнего текста."""
+
+    result = ask_gemini(prompt)
+    if result.startswith('Ошибка') or result.startswith('Gemini API'):
+        return jsonify({'status': 'error', 'message': result})
+
+    try:
+        questions = json.loads(result)
+        if not isinstance(questions, list):
+            questions = [questions]
+    except json.JSONDecodeError:
+        return jsonify({'status': 'error', 'message': 'Gemini вернул невалидный JSON'})
+
+    conn = get_db()
+    added = 0
+    for q in questions:
+        opts = json.dumps(q.get('options', [''] * 4), ensure_ascii=False)
+        conn.execute(
+            'INSERT INTO questions (subject, topic, question, options, answer, difficulty, source) VALUES (?,?,?,?,?,?,?)',
+            (q.get('subject', subject), q.get('topic', 'general'),
+             q.get('question', ''), opts, int(q.get('answer', 0)),
+             int(q.get('difficulty', 1)), 'gemini')
+        )
+        added += 1
+    conn.commit()
+    conn.close()
+
+    log_admin(session['user_id'], 'генерация вопросов', f'{added} вопросов по {subject}')
+    return jsonify({'status': 'ok', 'added': added})
+
+
+@app.route('/api/admin/delete_generated', methods=['POST'])
+@admin_required
+def delete_generated():
+    conn = get_db()
+    deleted = conn.execute('DELETE FROM questions WHERE source = ?', ('gemini',)).rowcount
+    conn.commit()
+    conn.close()
+    log_admin(session['user_id'], 'удаление сгенерированных', f'удалено {deleted}')
+    return jsonify({'status': 'ok', 'deleted': deleted})
+
+
+@app.route('/api/admin/delete_all_questions', methods=['POST'])
+@admin_required
+def delete_all_questions():
+    conn = get_db()
+    deleted = conn.execute('DELETE FROM questions').rowcount
+    conn.commit()
+    conn.close()
+    log_admin(session['user_id'], 'удаление всех вопросов', f'удалено {deleted}')
+    return jsonify({'status': 'ok', 'deleted': deleted})
+
+
+@app.route('/api/admin/logs', methods=['GET'])
+@admin_required
+def admin_logs():
+    conn = get_db()
+    logs = conn.execute('SELECT * FROM admin_logs ORDER BY created_at DESC LIMIT 100').fetchall()
+    conn.close()
+    return jsonify([dict(l) for l in logs])
+
+
+# ─── Settings ─────────────────────────────────────────────────────────────────
 
 @app.route('/settings')
 @login_required
@@ -331,7 +436,6 @@ def seed_questions():
         return
 
     questions = [
-        # Math
         ('math', 'algebra', 'Решите уравнение: 2x + 5 = 15', '["6", "5", "7", "4"]', 1, 1),
         ('math', 'algebra', 'Найдите корень уравнения: x² - 9 = 0', '["3 и -3", "3", "-3", "9"]', 0, 2),
         ('math', 'geometry', 'Чему равна площадь прямоугольника со сторонами 4 и 7?', '["28", "24", "32", "14"]', 0, 1),
@@ -342,14 +446,12 @@ def seed_questions():
         ('math', 'geometry', 'Чему равен объём куба со стороной 5?', '["125", "25", "50", "100"]', 0, 2),
         ('math', 'functions', 'Найдите значение функции f(x) = 2x + 1 в точке x = 3', '["7", "6", "5", "8"]', 0, 1),
         ('math', 'algebra', 'Решите систему: x + y = 5, x - y = 1', '["x=3,y=2", "x=2,y=3", "x=4,y=1", "x=1,y=4"]', 0, 2),
-        # Russian
         ('russian', 'orthography', 'В каком слове пишется буква И?', '["ц_рк", "ц_ган", "ц_плёнок", "ц_кнуть"]', 0, 1),
         ('russian', 'orthography', 'В каком слове НЕ пишется слитно?', '["не_красивый", "не_годование", "не_мог", "не_был"]', 1, 2),
         ('russian', 'grammar', 'Укажите слово с ошибкой в окончании', '["много яблок", "пара чулок", "нет сапогов", "пять апельсинов"]', 2, 2),
-        ('russian', 'punctuation', 'Где нужно поставить запятую? "Он пришёл(,) но опоздал."', '["перед но", "после но", "не нужно", "вместо но"]', 0, 1),
+        ('russian', 'punctuation', 'Где нужно поставить запятую?', '["перед но", "после но", "не нужно", "вместо но"]', 0, 1),
         ('russian', 'orthography', 'В каком слове пишется Ь?', '["ноч_", "мяч_", "плащ_", "ключ_"]', 0, 1),
-        # Informatics
-        ('informatics', 'logic', 'Чему равно значение выражения: НЕ (A И B) ИЛИ C, если A=1, B=0, C=0?', '["1", "0", "2", "3"]', 0, 2),
+        ('informatics', 'logic', 'Чему равно НЕ (A И B) ИЛИ C при A=1 B=0 C=0?', '["1", "0", "2", "3"]', 0, 2),
         ('informatics', 'coding', 'Что выведет print(2 ** 3)?', '["8", "6", "9", "5"]', 0, 1),
         ('informatics', 'systems', 'Сколько байт в 1 Кбайте?', '["1024", "1000", "512", "2048"]', 0, 1),
         ('informatics', 'logic', 'Сколько строк в таблице истинности для 3 переменных?', '["8", "6", "4", "10"]', 0, 1),
@@ -357,8 +459,8 @@ def seed_questions():
     ]
 
     conn.executemany(
-        'INSERT INTO questions (subject, topic, question, options, answer, difficulty) VALUES (?,?,?,?,?,?)',
-        questions
+        'INSERT INTO questions (subject, topic, question, options, answer, difficulty, source) VALUES (?,?,?,?,?,?,?)',
+        [(q[0], q[1], q[2], q[3], q[4], q[5], 'seed') for q in questions]
     )
     conn.commit()
     conn.close()
