@@ -356,12 +356,16 @@ def generate_questions():
     result = ask_gemini(prompt)
     if result.startswith('Ошибка') or result.startswith('API'):
         return jsonify({'status': 'error', 'message': result})
+    cleaned = result.strip()
+    if cleaned.startswith('```'):
+        cleaned = cleaned.split('\n', 1)[-1]
+        cleaned = cleaned.rsplit('```', 1)[0].strip()
     try:
-        questions = json.loads(result)
+        questions = json.loads(cleaned)
         if not isinstance(questions, list):
             questions = [questions]
     except json.JSONDecodeError:
-        return jsonify({'status': 'error', 'message': 'Модель вернула невалидный JSON'})
+        return jsonify({'status': 'error', 'message': 'Модель вернула невалидный JSON', 'raw': result[:2000]})
     conn = get_db()
     added = 0
     for q in questions:
