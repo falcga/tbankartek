@@ -10,7 +10,7 @@ from flask import Flask, render_template, request, jsonify, redirect, url_for, s
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
-PROXY_URL = os.getenv('PROXY_URL', 'https://gemini-proxy.your-worker.workers.dev/v1/chat/completions')
+PROXY_URL = os.getenv('PROXY_URL', '')
 
 DB_PATH = 'database.db'
 
@@ -63,8 +63,6 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
     ''')
-
-    # Seed default admin
     existing = conn.execute('SELECT id FROM users WHERE email = ?', ('admin@local.local',)).fetchone()
     if not existing:
         hashed = hashlib.sha256(b'admin123').hexdigest()
@@ -72,7 +70,6 @@ def init_db():
             'INSERT INTO users (email, password, name, role) VALUES (?,?,?,?)',
             ('admin@local.local', hashed, 'Admin', 'admin')
         )
-
     conn.commit()
     conn.close()
 
@@ -109,35 +106,33 @@ def admin_required(f):
 
 def ask_gemini(prompt):
     if not GEMINI_API_KEY:
-        return "API ключ не настроен. Добавьте GEMINI_API_KEY в .env файл."
+        return 'API ключ не настроен'
+    if not PROXY_URL:
+        url = f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}'
+        try:
+            resp = requests.post(url, json={'contents': [{'parts': [{'text': prompt}]}]}, timeout=30)
+            data = resp.json()
+            if 'candidates' in data and data['candidates']:
+                return data['candidates'][0]['content']['parts'][0]['text']
+            return f'Ошибка API: {json.dumps(data, ensure_ascii=False)}'
+        except Exception as e:
+            return f'Ошибка API: {str(e)}'
     try:
         resp = requests.post(
             PROXY_URL,
-            headers={
-                'Content-Type': 'application/json',
-                'Authorization': f'Bearer {GEMINI_API_KEY}'
-            },
-            json={
-                'model': 'gemma-4-31b',
-                'messages': [
-                    {'role': 'user', 'content': prompt}
-                ],
-                'temperature': 0.7,
-                'max_tokens': 8192
-            },
-            timeout=30
+            headers={'Content-Type': 'application/json', 'Authorization': f'Bearer {GEMINI_API_KEY}'},
+            json={'model': 'gemma-4-31b', 'messages': [{'role': 'user', 'content': prompt}], 'temperature': 0.7, 'max_tokens': 8192},
+            timeout=60
         )
         data = resp.json()
         if 'choices' in data and len(data['choices']) > 0:
             return data['choices'][0]['message']['content']
         if 'error' in data:
-            return f"Ошибка API: {data['error']}"
-        return f"API: пустой ответ. Детали: {json.dumps(data, ensure_ascii=False)}"
+            return f'Ошибка API: {data["error"]}'
+        return f'Ошибка API: {json.dumps(data, ensure_ascii=False)}'
     except Exception as e:
-        return f"Ошибка API: {str(e)}"
+        return f'Ошибка API: {str(e)}'
 
-
-# ─── Routes ───────────────────────────────────────────────────────────────────
 
 @app.route('/')
 def index():
@@ -240,12 +235,12 @@ def explain():
     question = data.get('question', '')
     user_answer = data.get('user_answer', '')
     correct_answer = data.get('correct_answer', '')
-    prompt = f"""Ты репетитор по подготовке к ОГЭ/ЕГЭ.
+    prompt = f'''Ты репетитор по подготовке к ОГЭ/ЕГЭ.
 Вопрос: {question}
 Правильный ответ: {correct_answer}
 Ответ ученика: {user_answer}
 Объясни ошибку ученика, дай развернутое пояснение и подскажи, как правильно решать подобные задачи.
-Пиши на русском, понятным для школьника языком."""
+Пиши на русском, понятным для школьника языком.'''
     explanation = ask_gemini(prompt)
     return jsonify({'explanation': explanation})
 
@@ -266,7 +261,6 @@ def diagnose():
         topics_data[t]['total'] += 1
         if a.get('is_correct'):
             topics_data[t]['correct'] += 1
-
     conn = get_db()
     conn.execute(
         'INSERT INTO results (user_id, subject, score, total, topics) VALUES (?,?,?,?,?)',
@@ -274,12 +268,11 @@ def diagnose():
     )
     conn.commit()
     conn.close()
-
     weak_topics = [t for t, d in topics_data.items() if d['correct'] / max(d['total'], 1) < 0.6]
-    prompt = f"""Ученик ответил правильно на {correct_count} из {total} вопросов по предмету {subject}.
+    prompt = f'''Ученик ответил правильно на {correct_count} из {total} вопросов по предмету {subject}.
 Слабые темы: {', '.join(weak_topics) if weak_topics else 'нет'}.
 Составь персональный план подготовки на неделю, выделив приоритетные темы для изучения.
-Пиши на русском."""
+Пиши на русском.'''
     plan = ask_gemini(prompt)
     return jsonify({'score': correct_count, 'total': total, 'weak_topics': weak_topics, 'plan': plan})
 
@@ -298,8 +291,6 @@ def submit_result():
     conn.close()
     return jsonify({'status': 'ok'})
 
-
-# ─── Admin ────────────────────────────────────────────────────────────────────
 
 @app.route('/admin')
 @admin_required
@@ -349,29 +340,24 @@ def generate_questions():
     data = request.json
     subject = data.get('subject', 'math')
     count = int(data.get('count', 5))
-
-    prompt = f"""Сгенерируй {count} вопросов по предмету "{subject}" для подготовки к ОГЭ/ЕГЭ.
+    prompt = f'''Сгенерируй {count} вопросов по предмету "{subject}" для подготовки к ОГЭ/ЕГЭ.
 Формат ответа: JSON-массив объектов, каждый объект имеет поля:
 - subject: "{subject}"
-- topic: тема (например algebra geometry probability для math, orthography grammar punctuation для russian, logic coding systems для informatics)
+- topic: тема
 - question: текст вопроса
 - options: массив из 4 строк-вариантов ответа
 - answer: индекс правильного ответа (0-3)
 - difficulty: уровень сложности 1-3
-
-Ответ должен быть ТОЛЬКО JSON без лишнего текста."""
-
+Ответ должен быть ТОЛЬКО JSON без лишнего текста.'''
     result = ask_gemini(prompt)
     if result.startswith('Ошибка') or result.startswith('API'):
         return jsonify({'status': 'error', 'message': result})
-
     try:
         questions = json.loads(result)
         if not isinstance(questions, list):
             questions = [questions]
     except json.JSONDecodeError:
         return jsonify({'status': 'error', 'message': 'Модель вернула невалидный JSON'})
-
     conn = get_db()
     added = 0
     for q in questions:
@@ -385,7 +371,6 @@ def generate_questions():
         added += 1
     conn.commit()
     conn.close()
-
     log_admin(session['user_id'], 'генерация вопросов', f'{added} вопросов по {subject}')
     return jsonify({'status': 'ok', 'added': added})
 
@@ -421,8 +406,6 @@ def admin_logs():
     return jsonify([dict(l) for l in logs])
 
 
-# ─── Settings ─────────────────────────────────────────────────────────────────
-
 @app.route('/settings')
 @login_required
 def settings():
@@ -449,15 +432,12 @@ def update_settings():
     return jsonify({'status': 'ok'})
 
 
-# ─── Seed data ────────────────────────────────────────────────────────────────
-
 def seed_questions():
     conn = get_db()
     count = conn.execute('SELECT COUNT(*) as c FROM questions').fetchone()['c']
     if count > 0:
         conn.close()
         return
-
     questions = [
         ('math', 'algebra', 'Решите уравнение: 2x + 5 = 15', '["6", "5", "7", "4"]', 1, 1),
         ('math', 'algebra', 'Найдите корень уравнения: x² - 9 = 0', '["3 и -3", "3", "-3", "9"]', 0, 2),
@@ -480,7 +460,6 @@ def seed_questions():
         ('informatics', 'logic', 'Сколько строк в таблице истинности для 3 переменных?', '["8", "6", "4", "10"]', 0, 1),
         ('informatics', 'coding', 'Что вернёт len("Python")?', '["6", "5", "7", "4"]', 0, 1),
     ]
-
     conn.executemany(
         'INSERT INTO questions (subject, topic, question, options, answer, difficulty, source) VALUES (?,?,?,?,?,?,?)',
         [(q[0], q[1], q[2], q[3], q[4], q[5], 'seed') for q in questions]
