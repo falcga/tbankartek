@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="{{ session.get('theme', 'light') }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Дэшборд — AI Ассистент</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <nav class="nav">
+    <a href="/dashboard" class="nav-brand">📚 AI Ассистент</a>
+    <div class="nav-links">
+      <a href="/dashboard" class="active">Дэшборд</a>
+      <a href="/trainer">Тренажёр</a>
+      <a href="/settings">Настройки</a>
+      {% if session.get('role') == 'admin' %}
+      <a href="/admin">Админ</a>
+      {% endif %}
+      <a href="/logout">Выйти</a>
+    </div>
+  </nav>
+
+  <div class="container">
+    <h1 style="margin-bottom:24px;">Привет, {{ user['name'] or user['email'] }}! 👋</h1>
+
+    <div class="stats-grid" id="stats-grid">
+      <div class="stat-card">
+        <div class="stat-value" id="stat-total">
+          {% set total = results|length %}
+          {{ total }}
+        </div>
+        <div class="stat-label">Всего попыток</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="stat-avg">
+          {% set avg = namespace(value=0) %}
+          {% if results %}
+            {% set sum = results|sum(attribute='total') %}
+            {% set correct = results|sum(attribute='score') %}
+            {% if sum > 0 %}
+              {{ (correct / sum * 100)|round(0)|int }}%
+            {% else %}
+              0%
+            {% endif %}
+          {% else %}
+            0%
+          {% endif %}
+        </div>
+        <div class="stat-label">Средний результат</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">{{ user['subject'] }}</div>
+        <div class="stat-label">Основной предмет</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">{{ user['grade'] }}</div>
+        <div class="stat-label">Класс</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-bottom:16px;">Последние результаты</h2>
+      {% if results %}
+        {% for r in results %}
+        <div class="result-item">
+          <div>
+            <div class="result-score">{{ r['score'] }}/{{ r['total'] }}</div>
+            <div style="font-size:13px;color:var(--text-secondary);">{{ r['subject'] }}</div>
+          </div>
+          <div class="result-date">{{ r['created_at'][:10] }}</div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <p style="color:var(--text-secondary);text-align:center;padding:24px;">
+          Пока нет результатов. <a href="/trainer" style="color:var(--accent);">Попробуй тренажёр!</a>
+        </p>
+      {% endif %}
+    </div>
+
+    <div style="text-align:center;margin-top:24px;">
+      <a href="/trainer" class="btn btn-primary">Начать тренировку</a>
+    </div>
+  </div>
+
+  <script src="/static/js/script.js"></script>
+</body>
+</html>

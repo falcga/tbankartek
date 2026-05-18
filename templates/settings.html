@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="{{ session.get('theme', 'light') }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Настройки — AI Ассистент</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <nav class="nav">
+    <a href="/dashboard" class="nav-brand">📚 AI Ассистент</a>
+    <div class="nav-links">
+      <a href="/dashboard">Дэшборд</a>
+      <a href="/trainer">Тренажёр</a>
+      <a href="/settings" class="active">Настройки</a>
+      {% if session.get('role') == 'admin' %}
+      <a href="/admin">Админ</a>
+      {% endif %}
+      <a href="/logout">Выйти</a>
+    </div>
+  </nav>
+
+  <div class="container">
+    <h1 style="margin-bottom:24px;">⚙️ Настройки</h1>
+
+    <div class="card">
+      <form id="settings-form">
+        <div class="settings-section">
+          <h2>Профиль</h2>
+          <div class="form-group">
+            <label for="name">Имя</label>
+            <input type="text" id="name" name="name" class="form-input" value="{{ user['name'] or '' }}" placeholder="Твоё имя">
+          </div>
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" class="form-input" value="{{ user['email'] }}" disabled style="opacity:0.6;">
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h2>Обучение</h2>
+          <div class="form-group">
+            <label for="subject">Основной предмет</label>
+            <select id="subject" name="subject" class="form-select">
+              <option value="math" {% if user['subject'] == 'math' %}selected{% endif %}>Математика</option>
+              <option value="russian" {% if user['subject'] == 'russian' %}selected{% endif %}>Русский язык</option>
+              <option value="informatics" {% if user['subject'] == 'informatics' %}selected{% endif %}>Информатика</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="grade">Класс</label>
+            <select id="grade" name="grade" class="form-select">
+              <option value="8" {% if user['grade'] == 8 %}selected{% endif %}>8 класс</option>
+              <option value="9" {% if user['grade'] == 9 %}selected{% endif %}>9 класс (ОГЭ)</option>
+              <option value="10" {% if user['grade'] == 10 %}selected{% endif %}>10 класс</option>
+              <option value="11" {% if user['grade'] == 11 %}selected{% endif %}>11 класс (ЕГЭ)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h2>Оформление</h2>
+          <div class="theme-toggle">
+            <button type="button" class="theme-btn {% if session.get('theme') == 'light' %}active{% endif %}" data-theme="light">☀️ Светлая</button>
+            <button type="button" class="theme-btn {% if session.get('theme') == 'dark' %}active{% endif %}" data-theme="dark">🌙 Тёмная</button>
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Сохранить настройки</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="/static/js/script.js"></script>
+</body>
+</html>
