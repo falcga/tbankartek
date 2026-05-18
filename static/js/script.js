@@ -62,6 +62,18 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
+function mdToHtml(text) {
+  if (!text) return ''
+  text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+  text = text.replace(/\*(.+?)\*/g, '<em>$1</em>')
+  text = text.replace(/^### (.+)$/gm, '<h4>$1</h4>')
+  text = text.replace(/^## (.+)$/gm, '<h3>$1</h3>')
+  text = text.replace(/^# (.+)$/gm, '<h3>$1</h3>')
+  text = text.replace(/^- (.+)$/gm, '<li>$1</li>')
+  text = text.replace(/\n/g, '<br>')
+  return text
+}
+
 function showAlert(message, type = 'success') {
   const alert = document.createElement('div');
   alert.className = `alert alert-${type}`;
@@ -214,7 +226,7 @@ class Trainer {
         })
       });
       const data = await resp.json();
-      this.explanationBox.innerHTML = data.explanation;
+      this.explanationBox.innerHTML = mdToHtml(data.explanation);
     } catch (err) {
       const correct = answer.options[answer.correct];
       this.explanationBox.innerHTML = `Правильный ответ: <strong>${correct}</strong>.${answer.is_correct ? ' Всё верно!' : ' Обрати внимание на решение.'}`;
