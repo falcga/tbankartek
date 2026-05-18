@@ -5,14 +5,18 @@ import requests
 import json
 from datetime import datetime, timedelta
 from functools import wraps
+from dotenv import load_dotenv
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session
+
+load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
 PROXY_URL = os.getenv('PROXY_URL', '')
-
-DB_PATH = 'database.db'
+DB_DIR = os.path.join(os.path.expanduser('~'), '.tbank')
+os.makedirs(DB_DIR, exist_ok=True)
+DB_PATH = os.path.join(DB_DIR, 'database.db')
 
 
 def get_db():
