@@ -10,6 +10,7 @@ from flask import Flask, render_template, request, jsonify, redirect, url_for, s
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
+PROXY_URL = os.getenv('PROXY_URL', 'https://gemini-proxy.your-worker.workers.dev/v1/chat/completions')
 
 DB_PATH = 'database.db'
 
@@ -62,6 +63,16 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
     ''')
+
+    # Seed default admin
+    existing = conn.execute('SELECT id FROM users WHERE email = ?', ('admin@local.local',)).fetchone()
+    if not existing:
+        hashed = hashlib.sha256(b'admin123').hexdigest()
+        conn.execute(
+            'INSERT INTO users (email, password, name, role) VALUES (?,?,?,?)',
+            ('admin@local.local', hashed, 'Admin', 'admin')
+        )
+
     conn.commit()
     conn.close()
 
@@ -98,20 +109,32 @@ def admin_required(f):
 
 def ask_gemini(prompt):
     if not GEMINI_API_KEY:
-        return "Gemini API не настроен. Добавьте GEMINI_API_KEY в .env файл."
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
+        return "API ключ не настроен. Добавьте GEMINI_API_KEY в .env файл."
     try:
         resp = requests.post(
-            url,
-            json={"contents": [{"parts": [{"text": prompt}]}]},
+            PROXY_URL,
+            headers={
+                'Content-Type': 'application/json',
+                'Authorization': f'Bearer {GEMINI_API_KEY}'
+            },
+            json={
+                'model': 'gemma-4-31b',
+                'messages': [
+                    {'role': 'user', 'content': prompt}
+                ],
+                'temperature': 0.7,
+                'max_tokens': 8192
+            },
             timeout=30
         )
         data = resp.json()
-        if 'candidates' not in data or not data['candidates']:
-            return f"Gemini API: пустой ответ. Детали: {json.dumps(data, ensure_ascii=False)}"
-        return data['candidates'][0]['content']['parts'][0]['text']
+        if 'choices' in data and len(data['choices']) > 0:
+            return data['choices'][0]['message']['content']
+        if 'error' in data:
+            return f"Ошибка API: {data['error']}"
+        return f"API: пустой ответ. Детали: {json.dumps(data, ensure_ascii=False)}"
     except Exception as e:
-        return f"Ошибка Gemini API: {str(e)}"
+        return f"Ошибка API: {str(e)}"
 
 
 # ─── Routes ───────────────────────────────────────────────────────────────────
@@ -339,7 +362,7 @@ def generate_questions():
 Ответ должен быть ТОЛЬКО JSON без лишнего текста."""
 
     result = ask_gemini(prompt)
-    if result.startswith('Ошибка') or result.startswith('Gemini API'):
+    if result.startswith('Ошибка') or result.startswith('API'):
         return jsonify({'status': 'error', 'message': result})
 
     try:
@@ -347,7 +370,7 @@ def generate_questions():
         if not isinstance(questions, list):
             questions = [questions]
     except json.JSONDecodeError:
-        return jsonify({'status': 'error', 'message': 'Gemini вернул невалидный JSON'})
+        return jsonify({'status': 'error', 'message': 'Модель вернула невалидный JSON'})
 
     conn = get_db()
     added = 0
